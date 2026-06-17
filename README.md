@@ -5,7 +5,7 @@
 
 This project implements a real-time end-to-end Data Engineering pipeline simulating an e-commerce order analytics system.
 
-It captures transactional data from PostgreSQL, streams it using Debezium CDC + Kafka, stores raw events in MinIO (Data Lake), processes data using Apache Spark, and generates curated and analytics datasets.
+It captures transactional data from PostgreSQL, streams it using Debezium CDC + Kafka, stores raw events in MinIO (Data Lake), processes data using Apache Spark, generates curated and analytics datasets, and then store is back to MinIO(Data Lake).
 
 # 🏗️ Architecture Diagram
 
@@ -14,36 +14,36 @@ It captures transactional data from PostgreSQL, streams it using Debezium CDC + 
 Python Data Generator
         │
         ▼
-   PostgreSQL (orders_db)
+PostgreSQL (orders_db)
         │
         ▼
- Debezium CDC (Change Data Capture)
+Debezium CDC (Change Data Capture)
         │
         ▼
-     Apache Kafka
+Apache Kafka
         │
         ▼
- Kafka Connect Sink
+Kafka Connect Sink
         │
         ▼
- MinIO (Raw Data Lake Zone)
+MinIO (Raw Data Lake Zone)
         │
         ▼
- Apache Spark (ETL Processing)
+Apache Spark (ETL Processing)
         │
         ▼
- MinIO (Curated Zone - Parquet)
+MinIO (Curated Zone - Parquet)
         │
         ▼
- Analytics Layer (Revenue, Customers)
+Analytics Layer (Revenue, Customers)
 
 
 ## ⚙️ Setup Instructions
 # 1️⃣ Start Infrastructure (Docker)
-        ```docker-compose up -d
+        docker-compose up -d
 
 # 2️⃣ Verify Services
-        ```docker ps
+        docker ps
   
   #  Expected services:
         PostgreSQL
@@ -53,50 +53,51 @@ Python Data Generator
         MinIO
 
 # 3️⃣ Verify Database & Table
-        ```docker exec -it postgres psql -U admin -d orders_db
+        docker exec -it postgres psql -U admin -d orders_db
 
-        ```\dt
+        \dt
 
 # 4️⃣ Generate Data
-        ```py data_generator\generate_orders.py
+        py data_generator\generate_orders.py
     
     Verify:
 
-    ```SELECT COUNT(*) FROM orders;
+    SELECT COUNT(*) FROM orders;
 
 # 5️⃣ Start and Verify CDC Pipeline (Debezium → Kafka)
 
-    ```curl.exe http://localhost:8084
-        curl.exe http://localhost:8084/connectors
-
-```curl -X POST http://localhost:8083/connectors \
--H "Content-Type: application/json" \
---data @connectors/postgres_source.json
-
-```curl http://localhost:8083/connectors
-
-6️⃣ Verify Kafka Streaming
+    curl.exe http://localhost:8084
+    curl.exe http://localhost:8084/connectors
     
-```docker exec -it kafka bash
-kafka-console-consumer \
-        --topic orders_db.public.orders \
-        --from-beginning \
+    curl -X POST http://localhost:8083/connectors `
+    -H "Content-Type: application/json" `
+    --data @connectors/postgres_source.json
+    
+    curl http://localhost:8083/connectors
+
+6️⃣ Verify Kafka Streaming:
+
+        docker exec -it kafka bash
+        kafka-console-consumer `
+        --topic orders_db.public.orders `
+        --from-beginning `
         --bootstrap-server localhost:9092
 
 #  7️⃣ Configure MinIO (Raw Zone)
 
-    ```docker exec -it minio mc alias set local http://minio:9000 minioadmin minioadmin
-    ```>> docker exec -it minio mc mb local/datalake
+    docker exec -it minio mc alias set local http://minio:9000 minioadmin minioadmin
+    >> docker exec -it minio mc mb local/datalake
 
 # 8️⃣ Kafka → MinIO Sink Connector
 
-    ```curl.exe -X POST http://localhost:8083/connectors `
-    >> -H "Content-Type: application/json" `
-    >> -d @connectors/minio_sink.json
+    curl.exe -X POST http://localhost:8083/connectors `
+    -H "Content-Type: application/json" `
+    -d @connectors/minio_sink.json
 
-    ```curl.exe http://localhost:8083/connectors/minio-sink/status
+    curl.exe http://localhost:8083/connectors/minio-sink/status
 
-        Suggested structure:
+Structure of MinIO(Data Lake):
+           
             raw/
                 orders/
                     year=2026/
@@ -105,10 +106,10 @@ kafka-console-consumer \
                                 *.json
 
 # 9️⃣ Run Spark ETL Job
-    Enter in the spark bash: 
-        ```docker exec -it spark bash
-        In spark app run: 
-            ```python /app/spark/transform_orders.py
+    Enter the Spark Bash: 
+        docker exec -it spark bash
+        In the Spark app, run: 
+            python /app/spark/transform_orders.py
 
 # 🔟 Output Validation:
    #   📦 Raw Zone (MinIO)
@@ -144,7 +145,7 @@ kafka-console-consumer \
 ## ⚠️ Challenges Faced
     1. Kafka + Debezium Connector Configuration
         Issue: Incorrect topic mapping and schema mismatch
-            Solution: Fixed PostgreSQL table mapping in connector JSON
+            Solution: Fixed PostgreSQL table mapping in the connector JSON
     2. MinIO Sink Integration
         Issue: Kafka Connect failed to write structured CDC events
             Solution: Corrected bucket path structure and serialization format
@@ -156,10 +157,10 @@ kafka-console-consumer \
             Solution: Used offset tracking and idempotent Spark processing logic
 
 
-## 🚀 How to Run Entire Project (Quick Start)
-    ```docker-compose up -d 
-    ```docker ps
-    ```python data_generator/generate_orders.py
+## 🚀 How to Run the Entire Project (Quick Start)
+    docker-compose up -d 
+    docker ps
+    python data_generator/generate_orders.py
     
 
 ## 🧠 Final Outcome
